@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using System.Linq;
+using Assets.Scripts.Chip.Interfaces;
 
 public static class ChipLoader
 {
@@ -144,6 +145,9 @@ public static class ChipLoader
                 previouslyLoadedChips[componentName], pos, Quaternion.identity);
             loadedChipData.componentChips[i] = loadedComponentChip;
 
+            if (loadedComponentChip is ICustomSaveLogic chipWithDynamicPins)
+                chipWithDynamicPins.HandleLoad(componentToLoad);
+
             // Load input pin names
             for (int inputIndex = 0;
                  inputIndex < componentToLoad.inputPins.Length &&
@@ -223,6 +227,9 @@ public static class ChipLoader
 
             loadedComponentChip.gameObject.SetActive(true);
             loadedChipData.componentChips[i] = loadedComponentChip;
+
+            if (loadedComponentChip is ICustomSaveLogic chipWithDynamicPins)
+                chipWithDynamicPins.HandleLoad(componentToLoad);
 
             // Load input pin names
             for (int inputIndex = 0;
