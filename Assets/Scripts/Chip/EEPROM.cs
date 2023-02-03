@@ -39,7 +39,7 @@ public class EEPROM: BuiltinChip, ICustomSaveLogic {
     private void InitMemoryContent()
     {
         if (string.IsNullOrWhiteSpace(id))
-            id = "EEPROM " + loadedMemoryContents.Keys.Count + 1;
+            id = "EEPROM " + (loadedMemoryContents.Keys.Count + 1);
 
         if (content is null)
             content = (new byte[((long)1 << (addrBusBytes * 8)) * dataBusBytes]);
