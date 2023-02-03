@@ -39,43 +39,36 @@ public class EEPROM: BuiltinChip, ICustomSaveLogic {
             if (contents.Length != ((long)1 << (addrBusBytesSize * 8)) * dataBusBytesSize)
                 contents = new byte[((long)1 << (addrBusBytesSize * 8)) * dataBusBytesSize];
 
-            var _addrBusSize = addrBusBytesSize * 8;
-            var _dataBusSize = dataBusBytesSize * 8;
+            var addrBusBits = addrBusBytesSize * 8;
+            var dataBusBits = dataBusBytesSize * 8;
 
             var package = GetComponent<ChipPackage>();
-            var xoffset = 1f;
-            var yoffset = (busSpacing * 4 + (_addrBusSize + _dataBusSize) * pinSpacing) / 2f;
+            var yoffset = (busSpacing * 4 + (addrBusBits + dataBusBits) * pinSpacing) / 2f;
             if (package != null) {
                 package.override_width_and_height = true;
-                xoffset = package.override_width / 2f;
                 package.override_height = yoffset * 2f;
                 package.SetSizeAndSpacing(this);
             }
-            yoffset -= busSpacing;
 
-            inputPins = new Pin[_addrBusSize + _dataBusSize + 1];
+            inputPins = new Pin[addrBusBits + dataBusBits + 1];
             inputPins[0] = Instantiate(writePin, transform);
 
-            yoffset -= busSpacing + pinSpacing;
-
-            for (int i = 0; i < _addrBusSize; i++) {
+            for (int i = 0; i < addrBusBits; i++) {
                 var nextPin = Instantiate(addrPinPrefab, transform);
-                nextPin.pinName += i.ToString("X");
+                nextPin.pinName = "A" + (addrBusBits - i - 1).ToString("X");
                 inputPins[i + 1] = nextPin;
             }
 
-            yoffset -= busSpacing + 16 * pinSpacing;
-
-            for (int i = 0; i < _dataBusSize; i++) {
+            for (int i = 0; i < dataBusBits; i++) {
                 var nextPin = Instantiate(dataInPinPrefab, transform);
-                nextPin.pinName += i.ToString("X");
-                inputPins[i + _addrBusSize + 1] = nextPin;
+                nextPin.pinName += (dataBusBits - i - 1).ToString("X");
+                inputPins[i + dataBusBits + 1] = nextPin;
             }
 
-            outputPins = new Pin[_dataBusSize];
-            for (int i = 0; i < _dataBusSize; i++) {
+            outputPins = new Pin[dataBusBits];
+            for (int i = 0; i < dataBusBits; i++) {
                 var nextPin = Instantiate(dataOutPinPrefab, transform);
-                nextPin.pinName += i.ToString("X");
+                nextPin.pinName += (dataBusBits - i - 1).ToString("X");
                 outputPins[i] = nextPin;
             }
 
