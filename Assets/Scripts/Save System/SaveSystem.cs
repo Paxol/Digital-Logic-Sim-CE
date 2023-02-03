@@ -16,7 +16,7 @@ public static class SaveSystem
 
     public static string SaveDataDirectoryPath => Path.Combine(Application.persistentDataPath, "SaveData");
     static string CurrentSaveProfileWireLayoutDirectoryPath => Path.Combine(CurrentSaveProfileDirectoryPath, "WireLayout");
-    static string EEPROMSaveFilePath => Path.Combine(CurrentSaveProfileDirectoryPath, "EEPROMContents.json");
+    static string EEPROMSaveDirPath => Path.Combine(CurrentSaveProfileDirectoryPath, "Memory");
     public static string GetPathToSaveFile(string saveFileName) => Path.Combine(CurrentSaveProfileDirectoryPath, saveFileName + fileExtension);
 
     public static string GetPathToWireSaveFile(string saveFileName) => Path.Combine(CurrentSaveProfileWireLayoutDirectoryPath, saveFileName + fileExtension);
@@ -88,21 +88,38 @@ public static class SaveSystem
 
     public static byte[] LoadEEPROMContents()
     {
-        if (File.Exists(EEPROMSaveFilePath))
+        if (File.Exists(EEPROMSaveDirPath))
         {
-            string jsonString = ReadFile(EEPROMSaveFilePath);
+            string jsonString = ReadFile(EEPROMSaveDirPath);
             return JsonConvert.DeserializeObject<byte[]>(
                 jsonString);
         }
         return new byte[] { };
     }
 
+    public static byte[] LoadEEPROMContent(string id)
+    {
+        var filePath = Path.Join(EEPROMSaveDirPath, $"{id}.bin");
+        if (File.Exists(filePath)) {
+            return File.ReadAllBytes(filePath);
+        }
+        return new byte[] { };
+    }
 
+    public static void SaveEEPROMContent(string id, byte[] content)
+    {
+        if (!Directory.Exists(EEPROMSaveDirPath))
+            Directory.CreateDirectory(EEPROMSaveDirPath);
+
+        var filePath = Path.Join(EEPROMSaveDirPath, $"{id}.bin");
+        using (var fs = new FileStream(filePath, FileMode.Create))
+            fs.Write(content, 0, content.Length);
+    }
 
     public static void SaveEEPROMContents(byte[] contents)
     {
         string jsonStr = JsonConvert.SerializeObject(contents, Formatting.Indented);
-        WriteFile(EEPROMSaveFilePath, jsonStr);
+        WriteFile(EEPROMSaveDirPath, jsonStr);
     }
 
 
