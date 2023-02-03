@@ -4,43 +4,51 @@ using SFB;
 using Assets.Scripts.Chip.Interfaces;
 
 public class EEPROM: BuiltinChip, ICustomSaveLogic {
-    public static byte[] contents;
+    public static Dictionary<string, byte[]> loadedMemoryContents = new Dictionary<string, byte[]>();
+
+    public byte[] content
+    {
+        get => loadedMemoryContents.GetValueOrDefault(id);
+        set => loadedMemoryContents[id] = value;
+    }
 
     public Pin writePin;
 
-    public int addrBusBytesSize = 2;
+    public int addrBusBytes = 2;
     public Pin addrPinPrefab;
-    public int dataBusBytesSize = 2;
+    public int dataBusBytes = 2;
     public Pin dataInPinPrefab;
     public Pin dataOutPinPrefab;
 
-    public bool autoSaveAndLoad = false;
+    public string id = null;
+    public bool saveChanges = false;
 
     private float pinSpacing = 0.15f;
     private float busSpacing = 0.2f;
 
     private bool pinsInitialized = false;
 
-    protected override void Awake() {
-        base.Awake();
-        contents = new byte[((long) 1 << (addrBusBytesSize * 8)) * dataBusBytesSize];
-        // Debug.Log("EEPROM contents " + contents.Length);
-        if (autoSaveAndLoad)
-            SaveSystem.LoadEEPROMContents().CopyTo(contents, 0);
+    protected override void Start()
+    {
+        base.Start();
+
+        InitPins();
+        InitMemoryContent();
     }
 
-    protected override void Start() {
-        InitPins();
+    private void InitMemoryContent()
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            id = "EEPROM " + loadedMemoryContents.Keys.Count + 1;
+
+        if (content is null)
+            content = (new byte[((long)1 << (addrBusBytes * 8)) * dataBusBytes]);
     }
 
     private void InitPins() {
         if (!pinsInitialized) {
-            // Check if contents array has the right size
-            if (contents.Length != ((long)1 << (addrBusBytesSize * 8)) * dataBusBytesSize)
-                contents = new byte[((long)1 << (addrBusBytesSize * 8)) * dataBusBytesSize];
-
-            var addrBusBits = addrBusBytesSize * 8;
-            var dataBusBits = dataBusBytesSize * 8;
+            var addrBusBits = addrBusBytes * 8;
+            var dataBusBits = dataBusBytes * 8;
 
             var package = GetComponent<ChipPackage>();
             var yoffset = (busSpacing * 4 + (addrBusBits + dataBusBits) * pinSpacing) / 2f;
@@ -84,10 +92,10 @@ public class EEPROM: BuiltinChip, ICustomSaveLogic {
     }
 
     private void UpdatePinPosition() {
-        var _addrBusSize = addrBusBytesSize * 8;
-        var _dataBusSize = dataBusBytesSize * 8;
+        var _addrBusSize = addrBusBytes * 8;
+        var _dataBusSize = dataBusBytes * 8;
 
-        var package = GetComponent < ChipPackage > ();
+        var package = GetComponent<ChipPackage>();
         var xoffset = 1f;
         var yoffset = (busSpacing * 4 + (_addrBusSize + _dataBusSize) * pinSpacing) / 2f;
 
@@ -104,7 +112,7 @@ public class EEPROM: BuiltinChip, ICustomSaveLogic {
             inputPins[i + 1].transform.localPosition = new Vector3(-xoffset, yoffset - i * pinSpacing, 0);
         }
 
-        yoffset -= busSpacing + 16 * pinSpacing;
+        yoffset -= busSpacing + 8 * addrBusBytes * pinSpacing;
 
         for (int i = 0; i < _dataBusSize; i++) {
             inputPins[i + _addrBusSize + 1].transform.localPosition = new Vector3(-xoffset, yoffset - i * pinSpacing, 0);
@@ -136,8 +144,8 @@ public class EEPROM: BuiltinChip, ICustomSaveLogic {
 
     public void FlashBinary(string path) {
         var bytes = System.IO.File.ReadAllBytes(path);
-        contents = bytes;
-        SaveSystem.SaveEEPROMContents(contents);
+        content = bytes;
+        SaveSystem.SaveEEPROMContent(id, content);
     }
 
     public void DumpBinary() {
@@ -148,23 +156,23 @@ public class EEPROM: BuiltinChip, ICustomSaveLogic {
         StandaloneFileBrowser.SaveFilePanelAsync(
             "Save binary file", "", "", extensions, (string path) => {
                 if (path != null && path != "") {
-                    System.IO.File.WriteAllBytes(path, contents);
+                    System.IO.File.WriteAllBytes(path, content);
                 }
             });
     }
 
     protected override void ProcessOutput() {
         int address = 0;
-        for (int i = 0; i < (addrBusBytesSize * 8); i++) {
+        for (int i = 0; i < (addrBusBytes * 8); i++) {
             address <<= 1;
             address += inputPins[i + 1].State;
         }
-        int index = address * dataBusBytesSize;
+        int index = address * dataBusBytes;
         int data = 0;
         try {
-            for (int i = 0; i < dataBusBytesSize; i++) {
+            for (int i = 0; i < dataBusBytes; i++) {
                 data <<= 8;
-                data += contents[index + i];
+                data += content[index + i];
                 // Debug.Log("EEPROM read " + contents[index + i] + " at index " + (index + i) + " resulting in data " + data + "");
             }
         } catch {
@@ -178,39 +186,47 @@ public class EEPROM: BuiltinChip, ICustomSaveLogic {
         if (inputPins[0].State > 0) {
             //writing
             int newData = 0;
-            for (int i = 0; i < (dataBusBytesSize * 8); i++) {
+            for (int i = 0; i < (dataBusBytes * 8); i++) {
                 newData <<= 1;
-                newData += inputPins[i + 1 + addrBusBytesSize * 8].State;
+                newData += inputPins[i + 1 + addrBusBytes * 8].State;
             }
 
             if (newData != data) {
-                for (int i = dataBusBytesSize - 1; i >= 0; i--) {
+                for (int i = dataBusBytes - 1; i >= 0; i--) {
                     try {
-                        contents[index + i] = (byte) newData;
+                        content[index + i] = (byte)newData;
                     } catch {
                         Debug.Log("EEPROM write error at index " + (index + i));
                     }
                     newData >>= 8;
                 }
-                if (autoSaveAndLoad)
-                    SaveSystem.SaveEEPROMContents(contents);
+
+                if (saveChanges)
+                    SaveSystem.SaveEEPROMContent(id, content);
             }
         }
+    }
+
+    private void LoadEEPROMContent() {
+        content = SaveSystem.LoadEEPROMContent(id);
     }
 
     public void HandleLoad(SavedComponentChip savedChip) {
         if (string.IsNullOrEmpty(savedChip.metadata)) return;
 
-        var metadata = JsonUtility.FromJson < EEPROMMetadata > (savedChip.metadata);
+        var metadata = JsonUtility.FromJson<EEPROMMetadata>(savedChip.metadata);
 
-        addrBusBytesSize = metadata.addrBusBytesSize;
-        dataBusBytesSize = metadata.dataBusBytesSize;
+        addrBusBytes = metadata.addrBusBytesSize;
+        dataBusBytes = metadata.dataBusBytesSize;
+        id = metadata.id;
 
         InitPins();
+        LoadEEPROMContent();
     }
 
     public void HandleSaveMetadata(SavedComponentChip savedChip) {
-        var json = JsonUtility.ToJson(new EEPROMMetadata(addrBusBytesSize, dataBusBytesSize), false);
+        SaveSystem.SaveEEPROMContent(id, content);
+        var json = JsonUtility.ToJson(new EEPROMMetadata(addrBusBytes, dataBusBytes, id.ToString()), false);
 
         savedChip.metadata = json;
     }
@@ -220,9 +236,11 @@ public class EEPROM: BuiltinChip, ICustomSaveLogic {
 class EEPROMMetadata {
     public int addrBusBytesSize;
     public int dataBusBytesSize;
+    public string id;
 
-    public EEPROMMetadata(int addrBusBytesSize, int dataBusBytesSize) {
+    public EEPROMMetadata(int addrBusBytesSize, int dataBusBytesSize, string id) {
         this.addrBusBytesSize = addrBusBytesSize;
         this.dataBusBytesSize = dataBusBytesSize;
+        this.id = id;
     }
 }
